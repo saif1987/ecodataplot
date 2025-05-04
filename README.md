@@ -9,7 +9,7 @@ This project aims to visualize the economic development of countries over the pa
 1.  **Data Collection:**
 
     * Collect economic data for all countries, spanning the last 50 years.
-
+**
     * Key indicators include:
 
         * GDP (Gross Domestic Product)
@@ -59,11 +59,13 @@ The following Python libraries will be used:
 ##   Project Structure
 
     ├── data/          # Directory for storing raw and processed data
-    ├── notebooks/     # Directory for Jupyter Notebooks (exploration, analysis)
     ├── scripts/       # Directory for Python scripts
     │   ├── data_collection.py  # Script for collecting data
     │   ├── plotting.py       # Script for generating animated plots
+    ├── notebooks/     # Directory for Jupyter Notebooks (exploration, analysis)
+    ├── tests/         # Directory for unit tests
     ├── README.md      # Project README file
+    ├── requirements.txt # Project dependencies
 
 ##  Getting Started
 
@@ -80,8 +82,7 @@ The following Python libraries will be used:
 
 3.  **Install the required packages:**
 
-        pip install pandas bokeh wbgapi
-        # Install other packages as needed
+        pip install -r requirements.txt
 
 4.  **Obtain data:**
 
