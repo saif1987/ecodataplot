@@ -18,11 +18,10 @@ def get_all_countries():
 
 def get_economic_indicators(economy_ids, time_period, batch_size=50, delay_seconds=0.5):
     """
-    Fetches GDP, Population, Poverty Rate, Imports, and Exports data
+    Fetches GDP, Population, Poverty Rate, Imports, Exports, and GNI per capita data
     for a list of economy IDs for a specific time period, handling potential
     URL length limits
     by batching requests.
-
 
     Args:
         economy_ids (list): A list of World Bank economy IDs.
@@ -39,7 +38,8 @@ def get_economic_indicators(economy_ids, time_period, batch_size=50, delay_secon
         'SP.POP.TOTL': 'Population',
         'SI.POV.DDAY': 'Poverty Rate ($2.15/day, %)',
         'NE.IMP.GNFS.CD': 'Imports (Current US$)', # Added Imports
-        'NE.EXP.GNFS.CD': 'Exports (Current US$)'  # Added Exports
+        'NE.EXP.GNFS.CD': 'Exports (Current US$)', # Added Exports
+        'NY.GNP.PCAP.CD': 'GNI per capita (Current US$)' # Added GNI per capita
     }
     all_data_dfs = [] # List to store DataFrames from each batch
 

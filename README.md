@@ -59,8 +59,9 @@ The following Python libraries will be used:
 ##   Project Structure
 
     ├── data/          # Directory for storing raw and processed data
+    ├── data_collection/ # Directory for data collection scripts
+    │   └── data_collection.py  # Script for collecting data
     ├── scripts/       # Directory for Python scripts
-    │   ├── data_collection.py  # Script for collecting data
     │   ├── plotting.py       # Script for generating animated plots
     ├── notebooks/     # Directory for Jupyter Notebooks (exploration, analysis)
     ├── tests/         # Directory for unit tests
@@ -87,6 +88,9 @@ The following Python libraries will be used:
 4.  **Obtain data:**
 
     * Run the data collection script to fetch data from the World Bank Indicator API.
+        ```bash
+        python data_collection/data_collection.py
+        ```
 
 5.  **Run the plotting script:**
     
