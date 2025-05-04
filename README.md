@@ -1,1 +1,106 @@
-# ecodataplot
+# Economic Data Animation Project
+
+## Overview
+
+This project aims to visualize the economic development of countries over the past 50 years (1974-2024) through animated plots. By collecting and analyzing key economic indicators such as GDP, Exports, Imports, and Population, we can gain insights into how these factors have evolved and interacted over time.
+
+## Project Steps
+
+1.  **Data Collection:**
+
+    * Collect economic data for all countries, spanning the last 50 years.
+
+    * Key indicators include:
+
+        * GDP (Gross Domestic Product)
+
+        * Exports
+
+        * Imports
+
+        * Population
+
+    * Data source:
+
+        * World Bank Indicator API
+
+2.  **Animated Plotting Script:**
+
+    * Develop a Python script to generate professional-level animated plots.
+
+    * Utilize a suitable Python visualization library (e.g., Bokeh) for creating interactive and dynamic animations.
+
+3.  **Animated Visualizations:**
+
+    * Create time-animated plots to visualize the relationships between economic indicators:
+
+        * GDP vs. Exports
+
+        * GDP vs. Imports
+
+        * Other relevant combinations
+
+##   Data Source
+
+The following data source will be used:
+
+* **World Bank Indicator API:** For comprehensive economic data, particularly the World Development Indicators.
+
+##   Python Libraries
+
+The following Python libraries will be used:
+
+* **Pandas:** For data manipulation, cleaning, and analysis.
+
+* **Bokeh:** For creating interactive and animated plots.
+
+* **Other libraries:** (e.g., requests, wbgapi) for interacting with the World Bank Indicator API.
+
+##   Project Structure
+
+    ├── data/          # Directory for storing raw and processed data
+    ├── notebooks/     # Directory for Jupyter Notebooks (exploration, analysis)
+    ├── scripts/       # Directory for Python scripts
+    │   ├── data_collection.py  # Script for collecting data
+    │   ├── plotting.py       # Script for generating animated plots
+    ├── README.md      # Project README file
+
+##  Getting Started
+
+1.  **Clone the repository:**
+
+        git clone <repository_url>
+        cd economic-data-animation
+
+2.  **Set up a virtual environment (recommended):**
+
+        python3 -m venv venv
+        source venv/bin/activate  # On Linux/macOS
+        venv\Scripts\activate  # On Windows
+
+3.  **Install the required packages:**
+
+        pip install pandas bokeh wbgapi
+        # Install other packages as needed
+
+4.  **Obtain data:**
+
+    * Run the data collection script to fetch data from the World Bank Indicator API.
+
+5.  **Run the plotting script:**
+    
+        python scripts/plotting.py
+
+##  Visualizations
+
+The project will generate animated plots, including:
+
+* **GDP vs. Exports:** This animation will show how a country's exports change in relation to its GDP over the years.
+
+* **GDP vs. Imports:** This animation will illustrate the relationship between a country's imports and its GDP.
+
+* *(Additional plots can be added)*
+
+## Contributions
+
+Contributions are welcome! If you have any suggestions, find any issues, or would like to contribute to the project, please feel free to submit a pull request or open an issue.
