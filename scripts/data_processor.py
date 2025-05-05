@@ -66,8 +66,8 @@ def calculate_gdp_percentages(df: pd.DataFrame, required_cols: list[str]) -> pd.
         return None
 
     # Calculate percentages, handle potential division by zero or NaN
-    df['Imports (% GDP)'] = (df['Imports (Current US$)'] / df['GDP (Current US$)']) * 100
-    df['Exports (% GDP)'] = (df['Exports (Current US$)'] / df['GDP (Current US$)']) * 100
+    df['Imports (% GDP)'] = (df['Imports of goods and services (current US$)'] / df['GDP (current US$)']) * 100
+    df['Exports (% GDP)'] = (df['Exports of goods and services (current US$)'] / df['GDP (current US$)']) * 100
 
     # Replace potential infinite values with NaN
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
@@ -79,7 +79,7 @@ def filter_countries(df: pd.DataFrame, year_to_filter: int, pop_threshold: int, 
     if df is None: return None
     print(f"Filtering for countries in list, with population > {pop_threshold/1e6:.0f}M in {year_to_filter}...")
 
-    pop_col = 'Population' # Ensure this column name matches your data after pivoting
+    pop_col = 'Population, total' # Ensure this column name matches your data after pivoting
     if pop_col not in df.columns:
         print(f"Error: Population column '{pop_col}' not found for filtering.")
         return None
@@ -90,8 +90,20 @@ def filter_countries(df: pd.DataFrame, year_to_filter: int, pop_threshold: int, 
 
     print(f"Selected Countries: {filtered_countries if filtered_countries else 'None'}")
 
+    if not filtered_countries:
+        return pd.DataFrame() # Return empty DataFrame if no countries selected
+
     filtered_df = df[df['Country'].isin(filtered_countries)].copy()
+
+    # Interpolate missing import/export percentages within each country group
+    print("Interpolating missing import/export percentages...")
     plot_cols = ['Country', 'Year', 'Imports (% GDP)', 'Exports (% GDP)']
+    # Use transform for potentially more robust interpolation within groups
+    for col in plot_cols[2:]: # Iterate through 'Imports (% GDP)' and 'Exports (% GDP)'
+        filtered_df[col] = filtered_df.groupby('Country')[col].transform(
+            lambda x: x.interpolate(method='linear', limit_direction='both', axis=0)
+        )
+
     filtered_df = filtered_df[plot_cols].dropna(subset=['Imports (% GDP)', 'Exports (% GDP)'])
     print(f"Filtered data contains {len(filtered_df)} rows.")
     return filtered_df

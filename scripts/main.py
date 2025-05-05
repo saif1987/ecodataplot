@@ -2,33 +2,34 @@ import argparse
 import os
 from data_loader import load_data
 from data_processor import reshape_and_clean_data, calculate_gdp_percentages, filter_countries
-from plotter import create_bokeh_animation_gif
+from plotter import create_seaborn_animation # Updated import name
 
 # --- Configuration ---
 OUTPUT_DIR = "plots"
-OUTPUT_FILENAME = "asia_trade_gdp_animation.gif"
+OUTPUT_FILENAME = "asia_trade_gdp_animation.gif" # Revert extension to .gif
 POPULATION_THRESHOLD = 70_000_000
 POPULATION_FILTER_YEAR = 2023 # Use a recent, likely complete year
 
 # List of major Asian countries (adjust as needed based on CSV content and desired scope)
 ASIAN_COUNTRIES = [
     'China', 'India', 'Indonesia', 'Pakistan', 'Bangladesh', 'Japan',
-    'Philippines', 'Vietnam', 'Iran, Islamic Rep.', 'Turkiye', 'Thailand',
+    'Philippines', 'Viet Nam', 'Iran, Islamic Rep.', 'Turkiye', 'Thailand',
     'Myanmar', 'Korea, Rep.'
 ]
 
 # Columns required for calculations (ensure these match 'Series' names in CSV)
-CALCULATION_COLS = ['GDP (Current US$)', 'Imports (Current US$)', 'Exports (Current US$)']
+CALCULATION_COLS = ['GDP (current US$)', 'Imports of goods and services (current US$)', 'Exports of goods and services (current US$)']
 # Columns required for filtering (ensure this matches 'Series' name in CSV)
 FILTER_COLS = ['Population']
 
 def main():
-    parser = argparse.ArgumentParser(description="Load, process, and plot economic indicator data.")
-    parser.add_argument("csv_file", help="Path to the input CSV file containing economic indicators.")
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser(description="Load, process, and plot economic indicator data.")
+    # parser.add_argument("csv_file", help="Path to the input CSV file containing economic indicators.")
+    # args = parser.parse_args()
+    csv_file = './data/economic_indicators_1975-2025_20250504.csv' #args.csv_file
 
     # 1. Load Data
-    df_raw = load_data(args.csv_file)
+    df_raw = load_data(csv_file)
     if df_raw is None:
         return # Exit if loading failed
 
@@ -43,7 +44,8 @@ def main():
     if df_filtered is not None and not df_filtered.empty:
         animation_years = sorted(df_filtered['Year'].unique())
         print(f"Generating animation for years {min(animation_years)} to {max(animation_years)}...")
-        create_bokeh_animation_gif(df_filtered, animation_years, OUTPUT_DIR, OUTPUT_FILENAME)
+        # Call the updated plotting function
+        create_seaborn_animation(df_filtered, animation_years, OUTPUT_DIR, OUTPUT_FILENAME)
     else:
         print("No data remaining after filtering. Cannot generate plot.")
 

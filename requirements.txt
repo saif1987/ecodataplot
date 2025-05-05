@@ -1,10 +1,12 @@
 pandas>=1.0
-bokeh>=2.4
+# bokeh>=2.4
 wbgapi
 numpy>=1.20 # For numerical operations, used in plotting
-imageio>=2.10 # For creating GIFs from frames
-selenium>=4.0 # Required by bokeh.io.export_png
+# imageio>=2.10 # For creating GIFs from frames
+# selenium>=4.0 # Required by bokeh.io.export_png
 Pillow>=9.0 # Image processing, used by imageio and potentially bokeh export
 # Note: You also need a webdriver (geckodriver or chromedriver) installed
 #       and available in your system PATH for selenium/bokeh export_png.
 #       This cannot be managed via requirements.txt.
+matplotlib>=3.5 # For plotting
+seaborn>=0.11 # For enhanced plotting styles/palettes

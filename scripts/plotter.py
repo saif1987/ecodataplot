@@ -2,34 +2,31 @@ import pandas as pd
 import numpy as np
 import os
 import imageio
-import tempfile
-import shutil
-from bokeh.plotting import figure, ColumnDataSource
-from bokeh.palettes import Category10
-from bokeh.transform import factor_cmap
-from bokeh.models import NumeralTickFormatter
-from bokeh.io import export_png
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import seaborn as sns
+from matplotlib.ticker import PercentFormatter # For formatting axes as percentages
 
-def create_bokeh_animation_gif(df: pd.DataFrame, years: list[int], output_dir: str, output_filename: str):
+def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str, output_filename: str):
     """
-    Generates and saves the animated scatter plot using Bokeh frames.
+    Generates and saves an animated scatter plot using Seaborn/Matplotlib.
 
     Args:
         df: The filtered DataFrame ready for plotting.
         years: A sorted list of unique years present in the filtered data.
-        output_dir: The directory to save the output GIF.
-        output_filename: The name for the output GIF file.
+        output_dir: The directory to save the output animation.
+        output_filename: The name for the output animation file (e.g., .gif).
     """
     if df is None or df.empty:
-        print("No data available for plotting.")
+        print("No data available for interactive plot.")
         return
 
     output_path = os.path.join(output_dir, output_filename)
     countries = sorted(df['Country'].unique())
-    palette = Category10[max(3, min(10, len(countries)))]
-    color_map = factor_cmap('Country', palette=palette, factors=countries)
 
-    # Determine axis limits with padding
+    # --- Setup Plot ---
+    sns.set_theme(style="whitegrid")
+    fig, ax = plt.subplots(figsize=(12, 8))
     min_imp = df['Imports (% GDP)'].min()
     max_imp = df['Imports (% GDP)'].max()
     min_exp = df['Exports (% GDP)'].min()
@@ -37,66 +34,60 @@ def create_bokeh_animation_gif(df: pd.DataFrame, years: list[int], output_dir: s
     padding_imp = (max_imp - min_imp) * 0.1 if max_imp > min_imp else 1
     padding_exp = (max_exp - min_exp) * 0.1 if max_exp > min_exp else 1
 
-    temp_dir = tempfile.mkdtemp()
-    print(f"Using temporary directory for frames: {temp_dir}")
-    png_files = []
+    ax.set_xlim((min_imp - padding_imp), (max_imp + padding_imp))
+    ax.set_ylim((min_exp - padding_exp), (max_exp + padding_exp))
+    ax.xaxis.set_major_formatter(PercentFormatter(xmax=100))
+    ax.yaxis.set_major_formatter(PercentFormatter(xmax=100))
+    ax.set_xlabel("Imports (% of GDP)")
+    ax.set_ylabel("Exports (% of GDP)")
+    fig.suptitle("Imports vs. Exports as % of GDP Over Time", fontsize=16)
 
-    # Initialize plot with data from the first year
-    first_year_data = df[df['Year'] == years[0]]
-    source = ColumnDataSource(data=first_year_data)
+    # Use seaborn's color palette
+    palette = sns.color_palette("tab10", n_colors=len(countries))
+    color_dict = dict(zip(countries, palette))
 
-    p = figure(
-        height=600, width=800,
-        tools="pan,wheel_zoom,box_zoom,reset,save,hover",
-        tooltips=[("Country", "@Country"), ("Imports", "@{%Imports (% GDP)}{0.0}%"), ("Exports", "@{%Exports (% GDP)}{0.0}%")],
-        x_range=(min_imp - padding_imp, max_imp + padding_imp),
-        y_range=(min_exp - padding_exp, max_exp + padding_exp),
-        title=f"Imports vs. Exports as % of GDP - Year: {years[0]}"
-    )
-    p.xaxis.axis_label = "Imports (% of GDP)"
-    p.yaxis.axis_label = "Exports (% of GDP)"
-    p.xaxis.formatter = NumeralTickFormatter(format="0.0'%'")
-    p.yaxis.formatter = NumeralTickFormatter(format="0.0'%'")
+    # Initial scatter plot (empty) & year text
+    scatter = ax.scatter([], [], s=100, alpha=0.7) # s is marker size
+    year_text = ax.text(0.95, 0.05, '', transform=ax.transAxes, ha='right', fontsize=14, weight='bold')
 
-    p.scatter(
-        x='Imports (% GDP)', y='Exports (% GDP)', source=source,
-        legend_field='Country', color=color_map, size=12, alpha=0.7
-    )
-    p.legend.location = "top_left"
-    p.legend.title = "Countries"
-    p.legend.click_policy="hide"
+    # Create legend handles
+    legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=country,
+                                 markerfacecolor=color_dict[country], markersize=10)
+                      for country in countries]
+    ax.legend(handles=legend_handles, title="Countries", bbox_to_anchor=(1.05, 1), loc='upper left')
 
-    print("Generating frames...")
-    for i, year in enumerate(years):
-        print(f"  Processing year: {year} ({i+1}/{len(years)})")
+    plt.tight_layout(rect=[0, 0, 0.85, 0.95]) # Adjust layout for legend
+
+    # --- Animation Function ---
+    def update(year):
+        """Update function for Matplotlib animation."""
         current_data = df[df['Year'] == year]
-        source.data = ColumnDataSource.from_df(current_data) # Update source data
-        p.title.text = f"Imports vs. Exports as % of GDP - Year: {year}" # Update title
+        if current_data.empty:
+            scatter.set_offsets(np.empty((0, 2))) # Clear points if no data
+            scatter.set_facecolor(np.empty((0, 4)))
+        else:
+            offsets = current_data[['Imports (% GDP)', 'Exports (% GDP)']].values
+            colors = [color_dict[country] for country in current_data['Country']]
+            scatter.set_offsets(offsets)
+            scatter.set_facecolor(colors)
 
-        frame_path = os.path.join(temp_dir, f"frame_{i:04d}.png")
-        try:
-            export_png(p, filename=frame_path)
-            png_files.append(frame_path)
-        except Exception as e:
-            print(f"    Error exporting frame for year {year}: {e}")
-            print("    Ensure selenium webdriver (geckodriver/chromedriver) is installed and in PATH.")
+        year_text.set_text(str(year))
+        ax.set_title(f"Year: {year}")
+        print(f"  Processing frame for year: {year}") # Progress indicator
+        return scatter, year_text
 
-    if not png_files:
-        print("No frames were generated. Cannot create GIF.")
-    else:
-        print(f"\nStitching {len(png_files)} frames into GIF: {output_path}...")
-        try:
-            os.makedirs(output_dir, exist_ok=True)
-            with imageio.get_writer(output_path, mode='I', duration=0.2, loop=0) as writer:
-                for filename in png_files:
-                    image = imageio.imread(filename)
-                    writer.append_data(image)
-            print("GIF saved successfully.")
-        except Exception as e:
-            print(f"Error creating GIF: {e}")
+    # --- Create and Save Animation ---
+    print("Creating animation...")
+    ani = animation.FuncAnimation(fig, update, frames=years, interval=200, blit=True, repeat=False)
 
+    print(f"Saving animation to: {output_path}")
     try:
-        print(f"Cleaning up temporary directory: {temp_dir}")
-        shutil.rmtree(temp_dir)
+        os.makedirs(output_dir, exist_ok=True)
+        # Use Pillow writer for GIF (usually available with matplotlib)
+        ani.save(output_path, writer='pillow', fps=5)
+        print("Animation saved successfully.")
     except Exception as e:
-        print(f"Warning: Could not remove temporary directory {temp_dir}: {e}")
+        print(f"Error saving animation: {e}")
+        print("Ensure 'pillow' is installed. You might need 'imagemagick' for other formats.")
+
+    plt.close(fig) # Close the plot figure after saving
