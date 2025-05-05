@@ -61,8 +61,12 @@ The following Python libraries will be used:
     ├── data/          # Directory for storing raw and processed data
     ├── data_collection/ # Directory for data collection scripts
     │   └── data_collection.py  # Script for collecting data
-    ├── scripts/       # Directory for Python scripts
-    │   ├── plotting.py       # Script for generating animated plots
+    ├── scripts/       # Directory for plotting logic and execution
+    │   ├── data_loader.py    # Loads data from CSV
+    │   ├── data_processor.py # Processes and filters data
+    │   ├── plotter.py        # Generates the animation plot
+    │   ├── main.py           # Main script to run plotting pipeline
+    │   └── fetch_flags.py    # Script to download flag icons
     ├── notebooks/     # Directory for Jupyter Notebooks (exploration, analysis)
     ├── tests/         # Directory for unit tests
     ├── README.md      # Project README file
@@ -91,10 +95,21 @@ The following Python libraries will be used:
         ```bash
         python data_collection/data_collection.py
         ```
+    * This creates a CSV file in the `data/` directory.
 
-5.  **Run the plotting script:**
-    
-        python scripts/plotting.py
+5.  **Fetch Flag Icons (Run once):**
+    * Run the flag fetching script to download icons needed for the plot.
+        ```bash
+        python scripts/fetch_flags.py
+        ```
+    * This creates rounded flag icons in the `icons/` directory.
+
+6.  **Generate the Animation:**
+    * Run the main plotting script, providing the path to the CSV file generated in step 4.
+        ```bash
+        # Example: Replace with the actual name of your data file
+        python scripts/main.py data/economic_indicators_1975-2025_20250504.csv
+        ```
 
 ##  Visualizations
 
