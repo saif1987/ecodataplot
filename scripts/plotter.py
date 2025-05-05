@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import seaborn as sns
 from matplotlib.ticker import PercentFormatter # For formatting axes as percentages
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox # For plotting images
 
 def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str, output_filename: str):
     """
@@ -25,9 +26,20 @@ def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str
         return
 
     output_path = os.path.join(output_dir, output_filename)
-    INTERPOLATION_STEPS = 5 # Number of intermediate frames between years (adjust for smoother/faster)
+    INTERPOLATION_STEPS = 5
     countries = sorted(df['Country'].unique())
+    ICON_DIR = "./icons" # Path to the icons folder relative to this script
 
+    # --- Load Icons ---
+    flag_images = {}
+    print("Loading flag icons...")
+    for country in countries:
+        icon_path = os.path.join(ICON_DIR, f"{country}.png")
+        try:
+            flag_images[country] = plt.imread(icon_path)
+        except FileNotFoundError:
+            print(f"  Warning: Icon not found for {country} at {icon_path}. Skipping.")
+            # Optionally use a placeholder image here
     # --- Setup Plot ---
     # sns.set_theme(style="whitegrid") # Remove or comment out seaborn theme
     plt.style.use('dark_background') # Use matplotlib's dark background style
@@ -51,15 +63,18 @@ def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str
     palette = sns.color_palette("bright", n_colors=len(countries)) # Try 'bright' palette for more pop
     color_dict = dict(zip(countries, palette))
 
-    # Initial scatter plot (empty) & year text
-    scatter = ax.scatter([], [], s=120, alpha=0.85) # Slightly larger size and higher alpha
+    # Remove initial scatter plot
+    # scatter = ax.scatter([], [], s=120, alpha=0.85)
+    # Store AnnotationBbox objects
+    artists = {}
     year_text = ax.text(0.95, 0.05, '', transform=ax.transAxes, ha='right', fontsize=14, weight='bold')
 
-    # Create legend handles
-    legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=country,
-                                 markerfacecolor=color_dict[country], markersize=10)
-                      for country in countries]
-    ax.legend(handles=legend_handles, title="Countries", bbox_to_anchor=(1.05, 1), loc='upper left')
+    # Remove standard legend creation
+    # # Create legend handles
+    # legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=country,
+    #                              markerfacecolor=color_dict[country], markersize=10)
+    #                   for country in countries]
+    # ax.legend(handles=legend_handles, title="Countries", bbox_to_anchor=(1.05, 1), loc='upper left')
 
     plt.tight_layout(rect=[0, 0, 0.85, 0.95]) # Adjust layout for legend
 
@@ -77,10 +92,12 @@ def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str
     # --- Animation Function ---
     def update(frame_info):
         """Update function for Matplotlib animation."""
-        year1, year2, step_frac = frame_info
-        current_offsets = []
-        current_colors = []
+        # Clear previous artists managed by this function
+        for artist in artists.values():
+            artist.remove()
+        artists.clear()
 
+        year1, year2, step_frac = frame_info
         for country in countries:
             pos1 = coord_dict.get((country, year1))
             pos2 = coord_dict.get((country, year2))
@@ -94,23 +111,26 @@ def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str
             elif pos2 is not None and step_frac >= 0.5: # Show pos2 if pos1 missing, near end
                 current_pos = pos2
 
-            if current_pos is not None:
-                current_offsets.append(current_pos)
-                current_colors.append(color_dict[country])
+            # Plot image if position and icon are valid
+            if current_pos is not None and country in flag_images:
+                img = flag_images[country]
+                # Adjust zoom based on desired icon size on plot
+                imagebox = OffsetImage(img, zoom=0.4) # Adjust zoom factor as needed
+                ab = AnnotationBbox(imagebox, current_pos, frameon=False, pad=0)
+                artists[country] = ax.add_artist(ab) # Add artist to axes and store reference
 
-        if not current_offsets:
-            scatter.set_offsets(np.empty((0, 2)))
-            scatter.set_facecolor(np.empty((0, 4)))
-        else:
-            scatter.set_offsets(np.array(current_offsets))
-            scatter.set_facecolor(current_colors)
 
         # Display the starting year of the transition in the title/text
         year_display = year1
         year_text.set_text(str(year_display))
         ax.set_title(f"Year: {year_display}")
         print(f"  Processing frame for year: {year1} (step {step_frac:.2f})") # Progress indicator
-        return scatter, year_text
+
+        # Return list of artists updated in this frame (needed for blit=True, but complex with AnnotationBbox)
+        # Setting blit=False simplifies this, as we don't need to return artists.
+        # return list(artists.values()) + [year_text] # This might be needed if blit=True works
+
+        return [year_text] # Return only year_text if blit=False
 
     # --- Create and Save Animation ---
     # Generate frames including intermediate steps
@@ -124,11 +144,27 @@ def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str
     if years:
         animation_frames.append((years[-1], years[-1], 0.0)) # Show final frame distinctly
 
+    # --- Add Manual Legend (Static - outside animation loop) ---
+    legend_x_start = 1.02 # X position relative to axes (adjust as needed)
+    legend_y_start = 0.95 # Y position relative to axes (adjust as needed)
+    legend_y_step = 0.05   # Vertical spacing between entries (adjust as needed)
+    legend_icon_zoom = 0.2 # Zoom factor for legend icons (adjust as needed)
+
+    for i, country in enumerate(countries):
+        if country in flag_images:
+            y_pos = legend_y_start - i * legend_y_step
+            img = flag_images[country]
+            imagebox = OffsetImage(img, zoom=legend_icon_zoom)
+            ab = AnnotationBbox(imagebox, (legend_x_start, y_pos), xycoords='axes fraction', frameon=False, box_alignment=(0, 0.5))
+            ax.add_artist(ab) # Add legend artist once
+            ax.text(legend_x_start + 0.04, y_pos, country, transform=ax.transAxes, va='center', ha='left', fontsize=9) # Add legend text once
+
     print(f"Creating animation with {len(animation_frames)} frames...")
     # Adjust interval based on desired speed and interpolation steps
     # E.g., if original interval was 500ms (fps=2), new interval is 500/INTERPOLATION_STEPS
     interval_ms = max(20, 500 // INTERPOLATION_STEPS) # Ensure interval is at least 20ms
-    ani = animation.FuncAnimation(fig, update, frames=animation_frames, interval=interval_ms, blit=True, repeat=False)
+    # Set blit=False as managing AnnotationBbox with blitting can be complex/buggy
+    ani = animation.FuncAnimation(fig, update, frames=animation_frames, interval=interval_ms, blit=False, repeat=False)
 
     print(f"Saving animation to: {output_path}")
     try:
