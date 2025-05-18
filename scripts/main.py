@@ -12,9 +12,9 @@ POPULATION_FILTER_YEAR = 2023 # Use a recent, likely complete year
 
 # List of major Asian countries (adjust as needed based on CSV content and desired scope)
 ASIAN_COUNTRIES = [
-    'China', 'India', 'Indonesia', 'Pakistan', 'Bangladesh', 'Japan',
-    'Philippines', 'Viet Nam', 'Iran, Islamic Rep.', 'Turkiye', 'Thailand',
-    'Myanmar', 'Korea, Rep.'
+    'China', 'India', 'Indonesia', 'Pakistan', 'Bangladesh', 
+    'Philippines', 'Viet Nam', 'Thailand',
+    'Myanmar'
 ]
 
 # Columns required for calculations (ensure these match 'Series' names in CSV)
