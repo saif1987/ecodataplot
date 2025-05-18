@@ -16,9 +16,15 @@ PLOT_TYPE_GDP_PER_CAPITA = "gdp_per_capita_vs_year"
 ALL_PLOT_TYPES = [PLOT_TYPE_TRADE, PLOT_TYPE_GDP_PER_CAPITA]
 # List of major Asian countries (adjust as needed based on CSV content and desired scope)
 ASIAN_COUNTRIES = [
-    'China', 'India', 'Indonesia', 'Pakistan', 'Bangladesh', 
-    'Philippines', 'Viet Nam', 'Thailand',
-    'Myanmar'
+    # 'China', 
+    'India', 
+    # 'Indonesia', 
+    'Pakistan', 
+    'Bangladesh', 
+    'Philippines', 
+    'Viet Nam',
+    # 'Thailand',
+    # 'Myanmar'
 ]
 
 # Columns required for calculations (ensure these match 'Series' names in CSV)

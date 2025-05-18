@@ -223,14 +223,17 @@ def create_gdp_per_capita_animation(df: pd.DataFrame, years: list[int], output_d
     plt.style.use('dark_background')
     fig, ax = plt.subplots(figsize=(12, 8))
 
-    min_gdp_pc = df['GDP per capita'].min()
-    max_gdp_pc = df['GDP per capita'].max()
-    padding_gdp_pc = (max_gdp_pc - min_gdp_pc) * 0.1 if max_gdp_pc > min_gdp_pc and not np.isnan(min_gdp_pc) and not np.isnan(max_gdp_pc) else 100
+    # Calculate initial Y-axis limits based on overall data
+    y_lower_limit = 0.0
+    overall_max_gdp_pc = df['GDP per capita'].max(skipna=True)
+    
+    # This initial_y_upper_limit will be used as a fallback in update()
+    initial_y_upper_limit = 1000.0 # Default minimum upper bound
+    if pd.notna(overall_max_gdp_pc) and overall_max_gdp_pc > 0:
+        initial_y_upper_limit = max(initial_y_upper_limit, overall_max_gdp_pc * 1.1) # 10% above overall max
 
     ax.set_xlim(min(years), max(years))
-    ax.set_ylim(max(0, (min_gdp_pc - padding_gdp_pc) if not np.isnan(min_gdp_pc) else 0), 
-                (max_gdp_pc + padding_gdp_pc) if not np.isnan(max_gdp_pc) else 1000)
-
+    ax.set_ylim(y_lower_limit, initial_y_upper_limit) # Set initial Y limits
     ax.set_xlabel("Year")
     ax.set_ylabel("GDP per Capita (current US$)")
     fig.suptitle("GDP per Capita Over Time", fontsize=16)
@@ -263,6 +266,7 @@ def create_gdp_per_capita_animation(df: pd.DataFrame, years: list[int], output_d
         current_display_year_float = year1 + (year2 - year1) * step_frac
         
         artists_to_return = []
+        current_frame_head_y_values = [] # Collect current Y values for Y-axis scaling
 
         for country in countries:
             # Get historical data up to year1
@@ -296,17 +300,40 @@ def create_gdp_per_capita_animation(df: pd.DataFrame, years: list[int], output_d
                 elif x_data: # Update last point if it's year1
                     y_data[-1] = gdp_pc_y1
 
+            # Store the current head Y value if valid (not None and not NaN)
+            if current_head_y is not None and pd.notna(current_head_y):
+                current_frame_head_y_values.append(current_head_y)
+
             lines[country].set_data(x_data, y_data)
             artists_to_return.append(lines[country])
 
             # Add moving flag icon at the head of the line
-            if current_head_y is not None and country in flag_images:
+            if current_head_y is not None and pd.notna(current_head_y) and country in flag_images:
                 img = flag_images[country]
                 imagebox = OffsetImage(img, zoom=FLAG_ICON_ZOOM_ON_LINE)
                 ab = AnnotationBbox(imagebox, (current_head_x, current_head_y), frameon=False, pad=0)
                 flag_artists_on_line[(country, 'line_head')] = ax.add_artist(ab)
                 artists_to_return.append(ab)
         
+        # Dynamically adjust Y-axis based on the *current head* of visible lines in this frame
+        max_y_in_frame = 0.0
+        any_data_in_frame = False
+        
+        if current_frame_head_y_values: # List contains only valid, non-NaN floats
+            max_y_in_frame = max(current_frame_head_y_values)
+            any_data_in_frame = True
+        
+        # Determine the upper Y limit for the current frame
+        if any_data_in_frame:
+            # Ensure a minimum sensible plot height, and add 10% padding
+            current_upper_y_limit = max(1000.0, max_y_in_frame * 1.1)
+        else:
+            # If no data is visible in this specific frame (no valid current_head_y values),
+            # fall back to a default minimum. This also handles the case where current_frame_head_y_values is empty.
+            current_upper_y_limit = 1000.0
+        
+        ax.set_ylim(0, current_upper_y_limit) # Lower limit is 0, upper is dynamic
+
         year_text.set_text(str(int(current_display_year_float)))
         ax.set_title(f"GDP per Capita: {int(current_display_year_float)}", color='white')
         print(f"  Processing GDP per capita frame: Year {year1}-{year2} (step {step_frac:.2f})")
