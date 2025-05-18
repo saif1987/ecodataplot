@@ -13,8 +13,6 @@ def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str
     Generates and saves an animated scatter plot using Seaborn/Matplotlib,
     with smooth interpolation between yearly points.
 
-    Generates and saves an animated scatter plot using Seaborn/Matplotlib.
-
     Args:
         df: The filtered DataFrame ready for plotting.
         years: A sorted list of unique years present in the filtered data.
@@ -22,7 +20,7 @@ def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str
         output_filename: The name for the output animation file (e.g., .gif).
     """
     if df is None or df.empty:
-        print("No data available for interactive plot.")
+        print("No data available for trade vs GDP plot.")
         return
 
     output_path = os.path.join(output_dir, output_filename)
@@ -179,3 +177,192 @@ def create_seaborn_animation(df: pd.DataFrame, years: list[int], output_dir: str
         print("Ensure 'pillow' is installed. You might need 'imagemagick' for other formats.")
 
     plt.close(fig) # Close the plot figure after saving
+
+INTERPOLATION_STEPS_GDP_PC = 10 # Number of steps for smooth transition between years
+
+def create_gdp_per_capita_animation(df: pd.DataFrame, years: list[int], output_dir: str, output_filename: str):
+    """
+    Generates and saves an animated line plot of GDP per capita vs. Year.
+
+    Args:
+        df: DataFrame with 'Country', 'Year', 'GDP per capita'.
+            Assumed to be interpolated and NaN-free for relevant data points by the caller.
+        years: A sorted list of unique years present in the data for animation.
+        output_dir: Directory to save the animation.
+        output_filename: Filename for the animation (e.g., .gif).
+    """
+    if df is None or df.empty:
+        print("No data available for GDP per capita plot.")
+        return
+
+    output_path = os.path.join(output_dir, output_filename)
+    countries = sorted(df['Country'].unique())
+    ICON_DIR = "./icons" 
+    FLAG_ICON_ZOOM_ON_LINE = 0.25 # Zoom factor for flag icons on the line
+
+    # --- Load Icons (for legend) ---
+    flag_images = {}
+    print("Loading flag icons for GDP per capita plot legend...")
+    for country in countries:
+        icon_path = os.path.join(ICON_DIR, f"{country}.png")
+        try:
+            flag_images[country] = plt.imread(icon_path)
+        except FileNotFoundError:
+            print(f"  Warning: Icon not found for {country} at {icon_path}. Text legend will be used for this country.")
+
+    # --- Prepare Data for Interpolation ---
+    # Create a lookup dictionary: (country, year) -> gdp_per_capita
+    gdp_pc_data_dict = {}
+    df_indexed = df.set_index(['Country', 'Year'])
+    for country in countries:
+        for year in years:
+            if (country, year) in df_indexed.index:
+                gdp_pc_data_dict[(country, year)] = df_indexed.loc[(country, year), 'GDP per capita']
+
+    # --- Setup Plot ---
+    plt.style.use('dark_background')
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    min_gdp_pc = df['GDP per capita'].min()
+    max_gdp_pc = df['GDP per capita'].max()
+    padding_gdp_pc = (max_gdp_pc - min_gdp_pc) * 0.1 if max_gdp_pc > min_gdp_pc and not np.isnan(min_gdp_pc) and not np.isnan(max_gdp_pc) else 100
+
+    ax.set_xlim(min(years), max(years))
+    ax.set_ylim(max(0, (min_gdp_pc - padding_gdp_pc) if not np.isnan(min_gdp_pc) else 0), 
+                (max_gdp_pc + padding_gdp_pc) if not np.isnan(max_gdp_pc) else 1000)
+
+    ax.set_xlabel("Year")
+    ax.set_ylabel("GDP per Capita (current US$)")
+    fig.suptitle("GDP per Capita Over Time", fontsize=16)
+
+    palette = sns.color_palette("bright", n_colors=len(countries))
+    color_dict = dict(zip(countries, palette))
+
+    lines = {}
+    for country in countries:
+        lines[country], = ax.plot([], [], lw=2.5, label=country, color=color_dict[country], alpha=0.8)
+
+    # Store AnnotationBbox objects for moving flags on lines
+    flag_artists_on_line = {}
+
+    year_text = ax.text(0.95, 0.05, '', transform=ax.transAxes, ha='right', fontsize=14, weight='bold', color='white')
+
+    plt.tight_layout(rect=[0, 0, 0.83, 0.95]) # Adjust layout for legend
+
+    # --- Animation Function ---
+    def update(frame_info):
+        year1_idx, year2_idx, step_frac = frame_info
+        year1 = years[year1_idx]
+        year2 = years[year2_idx]
+
+        # Clear previous flag artists on lines
+        for artist in flag_artists_on_line.values():
+            artist.remove()
+        flag_artists_on_line.clear()
+
+        current_display_year_float = year1 + (year2 - year1) * step_frac
+        
+        artists_to_return = []
+
+        for country in countries:
+            # Get historical data up to year1
+            historical_data = df[(df['Country'] == country) & (df['Year'] <= year1)]
+            
+            x_data = list(historical_data['Year'])
+            y_data = list(historical_data['GDP per capita'])
+
+            gdp_pc_y1 = gdp_pc_data_dict.get((country, year1))
+            gdp_pc_y2 = gdp_pc_data_dict.get((country, year2))
+
+            current_head_x = current_display_year_float
+            current_head_y = None
+
+            if gdp_pc_y1 is not None and gdp_pc_y2 is not None and year1 != year2:
+                current_head_y = gdp_pc_y1 + (gdp_pc_y2 - gdp_pc_y1) * step_frac
+                # Ensure the line extends to the interpolated point if it's beyond year1
+                if not x_data or x_data[-1] < current_head_x:
+                     x_data.append(current_head_x)
+                     y_data.append(current_head_y)
+                elif x_data: # If current_head_x is same as last x_data, update y
+                    x_data[-1] = current_head_x
+                    y_data[-1] = current_head_y
+
+            elif gdp_pc_y1 is not None: # At year1 or if year2 data is missing
+                current_head_x = year1
+                current_head_y = gdp_pc_y1
+                if not x_data or x_data[-1] != year1 : # Ensure year1 point is included
+                    x_data.append(year1)
+                    y_data.append(gdp_pc_y1)
+                elif x_data: # Update last point if it's year1
+                    y_data[-1] = gdp_pc_y1
+
+            lines[country].set_data(x_data, y_data)
+            artists_to_return.append(lines[country])
+
+            # Add moving flag icon at the head of the line
+            if current_head_y is not None and country in flag_images:
+                img = flag_images[country]
+                imagebox = OffsetImage(img, zoom=FLAG_ICON_ZOOM_ON_LINE)
+                ab = AnnotationBbox(imagebox, (current_head_x, current_head_y), frameon=False, pad=0)
+                flag_artists_on_line[(country, 'line_head')] = ax.add_artist(ab)
+                artists_to_return.append(ab)
+        
+        year_text.set_text(str(int(current_display_year_float)))
+        ax.set_title(f"GDP per Capita: {int(current_display_year_float)}", color='white')
+        print(f"  Processing GDP per capita frame: Year {year1}-{year2} (step {step_frac:.2f})")
+        
+        artists_to_return.append(year_text)
+        return artists_to_return
+
+    # --- Generate Animation Frames ---
+    animation_frames = []
+    if len(years) > 1:
+        for i in range(len(years) - 1):
+            for step in range(INTERPOLATION_STEPS_GDP_PC):
+                frac = step / INTERPOLATION_STEPS_GDP_PC
+                animation_frames.append((i, i + 1, frac))
+        # Add the final year's frame distinctly
+        animation_frames.append((len(years) - 1, len(years) - 1, 0.0))
+    elif len(years) == 1: # Single year data
+        animation_frames.append((0, 0, 0.0))
+
+    # --- Add Manual Legend (Static - outside animation loop) ---
+    legend_x_start = 1.02 
+    legend_y_start = 0.95 
+    legend_y_step = 0.045   
+    legend_icon_zoom_legend = 0.2 # Different zoom for legend
+
+    for i, country in enumerate(countries):
+        y_pos = legend_y_start - i * legend_y_step
+        text_x_offset = legend_x_start + 0.01 
+        if country in flag_images:
+            img = flag_images[country]
+            imagebox = OffsetImage(img, zoom=legend_icon_zoom_legend)
+            ab = AnnotationBbox(imagebox, (legend_x_start, y_pos), xycoords='axes fraction', frameon=False, box_alignment=(0, 0.5))
+            ax.add_artist(ab)
+            text_x_offset = legend_x_start + 0.04 
+        
+        ax.text(text_x_offset, y_pos, country, transform=ax.transAxes, 
+                va='center', ha='left', fontsize=9, color=color_dict[country])
+
+    if not animation_frames:
+        print("No frames to animate for GDP per capita plot. Skipping animation generation.")
+        plt.close(fig)
+        return
+
+    num_frames = len(animation_frames)
+    # Adjust interval based on desired speed and interpolation steps
+    interval_ms = max(20, 400 // INTERPOLATION_STEPS_GDP_PC) # e.g. 400ms per year / steps
+    # Set blit=False as managing AnnotationBbox with blitting can be complex
+    ani = animation.FuncAnimation(fig, update, frames=animation_frames, interval=interval_ms, blit=False, repeat=False)
+
+    print(f"Saving GDP per capita animation to: {output_path}")
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+        save_fps = 1000 // interval_ms
+        ani.save(output_path, writer='pillow', fps=save_fps)
+        print("GDP per capita animation saved successfully.")
+    except Exception as e:
+        print(f"Error saving GDP per capita animation: {e}")
+        print("Ensure 'pillow' is installed.")
+    plt.close(fig)
