@@ -97,6 +97,31 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     ax.set_xlabel("Percentage of Total Population")
     ax.set_ylabel("Age Group")
     
+    # --- Start of Y-axis Label and Grid Line Changes ---
+    # Get the sorted list of age group labels and their corresponding positions
+    age_groups_list = df['GROUP'].tolist()
+    tick_positions = []
+    tick_labels = []
+
+    for i, group_label in enumerate(age_groups_list):
+        # Check if the group is '100+' or a digit string that is a multiple of 5
+        if group_label == '100+':
+            tick_positions.append(i)
+            tick_labels.append(group_label)
+        elif group_label.isdigit():
+            age_num = int(group_label)
+            if age_num % 5 == 0:
+                tick_positions.append(i)
+                tick_labels.append(group_label)
+
+    # Set custom y-axis ticks and labels
+    ax.set_yticks(tick_positions)
+    ax.set_yticklabels(tick_labels)
+
+    # Add horizontal grid lines
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    # --- End of Y-axis Label and Grid Line Changes ---
+
     # Format x-axis labels to show absolute percentage values
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{abs(x):.0f}%'))
     
@@ -108,7 +133,7 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     ax.set_xlim(-max_percent * 1.1, max_percent * 1.1) 
 
     ax.legend()
-    ax.grid(axis='x', linestyle='--', alpha=0.7) # Add grid lines on the x-axis
+    ax.grid(axis='x', linestyle='--', alpha=0.7) # Keep vertical grid lines
 
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
