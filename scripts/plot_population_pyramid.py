@@ -5,15 +5,18 @@ import numpy as np
 import argparse
 
 
-def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str):
+def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str, plot_type: str = 'percent'):
     """
-    Generates and saves a standard population pyramid plot.
+    Generates and saves a population pyramid plot, either by percentage or raw population.
+    Displays gender imbalance by shading the 'extra' population in a darker color.
 
     Args:
         csv_path: Path to the CSV file containing population data.
                   Expected columns: 'GROUP' (age group), 'Male Population', 'Female Population'.
         output_dir: Directory to save the output plot.
         output_filename: Name for the output plot file (e.g., .png).
+        plot_type: 'percent' to plot percentages of total population, or 'population' to plot raw numbers.
+                   Defaults to 'percent'.
     """
     try:
         df = pd.read_csv(csv_path)
@@ -32,12 +35,10 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     # Ensure 'GROUP' column is treated as string/category for plotting labels
     df['GROUP'] = df['GROUP'].astype(str)
 
-    # Filter out rows where 'GROUP' is an empty string, as these are often summary rows
-    # and not specific age groups for the pyramid.
+    # Filter out rows where 'GROUP' is an empty string or the string 'nan',
+    # as these are often summary rows or invalid age group entries.
     df = df[df['GROUP'].str.strip() != '']
-    df = df[df['GROUP'].str.strip().str.lower() != 'nan'] # Added this line to filter out 'nan' strings
-    df = df[df['GROUP'].str.strip().str.lower() != '100+'] # Added this line to filter out 'nan' strings
-
+    df = df[df['GROUP'].str.strip().str.lower() != 'nan'] 
 
     # Clean and ensure population columns are numeric
     # Remove commas from the string representation of numbers before converting to numeric
@@ -55,16 +56,15 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     print(f"\nMissing values per column:\n{df.isnull().sum()}")
     print("----------------------------------------------------")
 
-    
     # Create a numerical sort key for the 'GROUP' column
     # This handles '100+' by assigning a large number for correct sorting
     df['sort_key'] = df['GROUP'].apply(lambda x: int(x) if x.isdigit() else (100 if x == '100+' else np.inf))
     
     # Sort age groups numerically using the new sort_key
     df = df.sort_values(by='sort_key', ascending=True)
-    
+
     # --- DEBUG LINE ADDED HERE ---
-    print(f"\n--- Debug: Unique GROUP values after filtering and sorting: {df['GROUP'].unique()} ---")
+    print(f"\n--- Debug: Unique GROUP values after filtering and numerical sorting: {df['GROUP'].unique()} ---")
     print("----------------------------------------------------")
     # --- END DEBUG LINE ---
 
@@ -81,20 +81,80 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
         df['Male_Percent'] = (df['Male Population'] / total_population) * 100
         df['Female_Percent'] = (df['Female Population'] / total_population) * 100
     
+    # Determine which columns to plot and what the x-axis label should be
+    if plot_type == 'percent':
+        # Calculate common and excess percentages
+        df['Common_Percent'] = df[['Male_Percent', 'Female_Percent']].min(axis=1)
+        df['Excess_Male_Percent'] = df['Male_Percent'] - df['Common_Percent']
+        df['Excess_Female_Percent'] = df['Female_Percent'] - df['Common_Percent']
+
+        male_common_data = df['Common_Percent']
+        male_excess_data = df['Excess_Male_Percent']
+        female_common_data = df['Common_Percent']
+        female_excess_data = df['Excess_Female_Percent']
+
+        x_label = "Percentage of Total Population"
+        x_formatter = plt.FuncFormatter(lambda x, p: f'{abs(x):.0f}%')
+        title_suffix = " (Percentage)"
+    elif plot_type == 'population':
+        # Calculate common and excess raw populations
+        df['Common_Population'] = df[['Male Population', 'Female Population']].min(axis=1)
+        df['Excess_Male_Population'] = df['Male Population'] - df['Common_Population']
+        df['Excess_Female_Population'] = df['Female Population'] - df['Common_Population']
+
+        male_common_data = df['Common_Population']
+        male_excess_data = df['Excess_Male_Population']
+        female_common_data = df['Common_Population']
+        female_excess_data = df['Excess_Female_Population']
+
+        x_label = "Population"
+        x_formatter = plt.FuncFormatter(lambda x, p: f'{abs(x):,.0f}') # Format with commas for population numbers
+        title_suffix = " (Raw Population)"
+    else:
+        raise ValueError("plot_type must be 'percent' or 'population'")
+
+    # --- Debugging: Print numbers being plotted for each age group in a single line ---
+    print("\n--- Debug: Data being plotted per age group (single line) ---")
+    for i, row in df.iterrows():
+        group = row['GROUP']
+        original_male_pop = row['Male Population']
+        original_female_pop = row['Female Population']
+
+        extra_info = ""
+        if plot_type == 'percent':
+            if row['Excess_Male_Percent'] > 0:
+                extra_info = f", Extra Male {row['Excess_Male_Percent']:.2f}%"
+            elif row['Excess_Female_Percent'] > 0:
+                extra_info = f", Extra Female {row['Excess_Female_Percent']:.2f}%"
+            print(f"Age Group: {group}, Male {original_male_pop:,.0f}, Female {original_female_pop:,.0f}{extra_info}")
+        elif plot_type == 'population':
+            if row['Excess_Male_Population'] > 0:
+                extra_info = f", Extra Male {row['Excess_Male_Population']:,.0f}"
+            elif row['Excess_Female_Population'] > 0:
+                extra_info = f", Extra Female {row['Excess_Female_Population']:,.0f}"
+            print(f"Age Group: {group}, Male {original_male_pop:,.0f}, Female {original_female_pop:,.0f}{extra_info}")
+    print("----------------------------------------------------")
+    # --- End Debugging ---
+
     # Create the plot
     fig, ax = plt.subplots(figsize=(10, 8))
 
     bar_height = 0.8
 
-    # Plot Male population (left side)
-    # Use negative values for male percentages to plot them to the left of the central axis
-    ax.barh(df['GROUP'], -df['Male_Percent'], height=bar_height, color='skyblue', label='Male')
+    # Plot Male population (left side) - Common part
+    ax.barh(df['GROUP'], -male_common_data, height=bar_height, color='skyblue', label='Male (Common)')
+    # Plot Male population (left side) - Excess part
+    ax.barh(df['GROUP'], -male_excess_data, height=bar_height, left=-male_common_data - male_excess_data,
+            color='steelblue', label='Male (Excess)')
 
-    # Plot Female population (right side)
-    ax.barh(df['GROUP'], df['Female_Percent'], height=bar_height, color='lightcoral', label='Female')
+    # Plot Female population (right side) - Common part
+    ax.barh(df['GROUP'], female_common_data, height=bar_height, color='lightcoral', label='Female (Common)')
+    # Plot Female population (right side) - Excess part
+    ax.barh(df['GROUP'], female_excess_data, height=bar_height, left=female_common_data,
+            color='indianred', label='Female (Excess)')
 
     # Customize plot
-    ax.set_xlabel("Percentage of Total Population")
+    ax.set_xlabel(x_label)
     ax.set_ylabel("Age Group")
     
     # --- Start of Y-axis Label and Grid Line Changes ---
@@ -122,17 +182,37 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     ax.grid(axis='y', linestyle='--', alpha=0.7)
     # --- End of Y-axis Label and Grid Line Changes ---
 
-    # Format x-axis labels to show absolute percentage values
-    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{abs(x):.0f}%'))
+    # Format x-axis labels dynamically
+    ax.xaxis.set_major_formatter(x_formatter)
     
-    ax.set_title("Population Pyramid", fontsize=16)
+    ax.set_title(f"Bangladesh Population Pyramid 2024{title_suffix}", fontsize=16)
+    
+    # Add subtitle for data source
+    fig.text(0.3, 0.97, "* Data source: US Census International Database (IDB)",
+             ha='center', va='center', fontsize=10, color='gray', transform=ax.transAxes)
 
     # Set x-axis limits symmetrically to ensure the pyramid is centered
     # Add some padding (10%) for better visualization
-    max_percent = max(df['Male_Percent'].max(), df['Female_Percent'].max()) if not df.empty else 10
-    ax.set_xlim(-max_percent * 1.1, max_percent * 1.1) 
+    # max_val should be based on the total (male_data + female_data or Male_Percent + Female_Percent)
+    # or simply the max of the individual male/female data to ensure full bar visibility.
+    # For population, it's max(Male Population, Female Population)
+    # For percent, it's max(Male_Percent, Female_Percent)
+    max_val = max(male_common_data.max() + male_excess_data.max(), 
+                  female_common_data.max() + female_excess_data.max()) if not df.empty else 10
+    ax.set_xlim(-max_val * 1.1, max_val * 1.1) 
 
-    ax.legend()
+    # Create custom legend handles for common and excess parts
+    from matplotlib.patches import Patch
+    custom_legend_labels = {
+        'Male': [Patch(facecolor='skyblue', label='Male (Common)'),
+                 Patch(facecolor='steelblue', label='Male (Excess)')],
+        'Female': [Patch(facecolor='lightcoral', label='Female (Common)'),
+                   Patch(facecolor='indianred', label='Female (Excess)')]
+    }
+    # Flatten the list of patches for the legend
+    handles = [item for sublist in custom_legend_labels.values() for item in sublist]
+    ax.legend(handles=handles, loc='upper right')
+    
     ax.grid(axis='x', linestyle='--', alpha=0.7) # Keep vertical grid lines
 
     # Create the output directory if it doesn't exist
@@ -152,13 +232,20 @@ def main():
         default='./data/IDB_07-05-2025.csv', # Sets the default value
         help="Path to the input CSV file for population pyramid. Defaults to './data/IDB_07-05-2025.csv' if not provided."
     )
+    parser.add_argument(
+        "--plot_type",
+        default="percent",
+        choices=["percent", "population"],
+        help="Type of data to plot: 'percent' or 'population'. Defaults to 'percent'."
+    )
     args = parser.parse_args()
     csv_file = args.csv_file
 
     OUTPUT_DIR = "plots"
-    OUTPUT_FILENAME = "population_pyramid.png"
+    # Adjust output filename based on plot type
+    OUTPUT_FILENAME = f"population_pyramid_{args.plot_type}.png"
 
-    plot_population_pyramid(csv_file, OUTPUT_DIR, OUTPUT_FILENAME)
+    plot_population_pyramid(csv_file, OUTPUT_DIR, OUTPUT_FILENAME, plot_type=args.plot_type)
 
 if __name__ == "__main__":
     main()
