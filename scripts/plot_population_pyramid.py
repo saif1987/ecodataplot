@@ -144,7 +144,8 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     # Plot Male population (left side) - Common part
     ax.barh(df['GROUP'], -male_common_data, height=bar_height, color='skyblue', label='Male (Common)')
     # Plot Male population (left side) - Excess part
-    ax.barh(df['GROUP'], -male_excess_data, height=bar_height, left=-male_common_data - male_excess_data,
+    # Corrected: Use positive width and set 'left' to the start of the excess portion
+    ax.barh(df['GROUP'], male_excess_data, height=bar_height, left=-(male_common_data + male_excess_data),
             color='steelblue', label='Male (Excess)')
 
     # Plot Female population (right side) - Common part
@@ -180,7 +181,7 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
 
     # Add horizontal grid lines
     ax.grid(axis='y', linestyle='--', alpha=0.7)
-    # --- End of Y-axis Label and Grid Line Changes ---
+    # --- End of Y-Y-axis Label and Grid Line Changes ---
 
     # Format x-axis labels dynamically
     ax.xaxis.set_major_formatter(x_formatter)
@@ -193,10 +194,6 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
 
     # Set x-axis limits symmetrically to ensure the pyramid is centered
     # Add some padding (10%) for better visualization
-    # max_val should be based on the total (male_data + female_data or Male_Percent + Female_Percent)
-    # or simply the max of the individual male/female data to ensure full bar visibility.
-    # For population, it's max(Male Population, Female Population)
-    # For percent, it's max(Male_Percent, Female_Percent)
     max_val = max(male_common_data.max() + male_excess_data.max(), 
                   female_common_data.max() + female_excess_data.max()) if not df.empty else 10
     ax.set_xlim(-max_val * 1.1, max_val * 1.1) 
