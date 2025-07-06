@@ -3,19 +3,21 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 import argparse
+from matplotlib.patches import Patch # Import Patch for custom legend handles
 
 
 def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str, plot_type: str = 'percent'):
     """
-    Generates and saves a population pyramid plot, either by percentage or raw population.
-    Displays gender imbalance by shading the 'extra' population in a darker color.
+    Generates and saves a population pyramid plot.
 
     Args:
         csv_path: Path to the CSV file containing population data.
                   Expected columns: 'GROUP' (age group), 'Male Population', 'Female Population'.
         output_dir: Directory to save the output plot.
         output_filename: Name for the output plot file (e.g., .png).
-        plot_type: 'percent' to plot percentages of total population, or 'population' to plot raw numbers.
+        plot_type: 'percent' to plot percentages of total population,
+                   'population' to plot raw numbers,
+                   or 'acc_pct' to plot accumulated percentage of population above each age.
                    Defaults to 'percent'.
     """
     try:
@@ -63,10 +65,8 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     # Sort age groups numerically using the new sort_key
     df = df.sort_values(by='sort_key', ascending=True)
 
-    # --- DEBUG LINE ADDED HERE ---
     print(f"\n--- Debug: Unique GROUP values after filtering and numerical sorting: {df['GROUP'].unique()} ---")
     print("----------------------------------------------------")
-    # --- END DEBUG LINE ---
 
     # Calculate percentages for plotting relative to the total population
     total_male = df['Male Population'].sum()
@@ -80,7 +80,18 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     else:
         df['Male_Percent'] = (df['Male Population'] / total_population) * 100
         df['Female_Percent'] = (df['Female Population'] / total_population) * 100
+
+    # Calculate accumulated percentages in reverse (percentage of population at or above this age)
+    # Ensure the DataFrame is sorted correctly before this step
+    df['Male_Acc_Percent_Rev'] = df['Male_Percent'].iloc[::-1].cumsum().iloc[::-1]
+    df['Female_Acc_Percent_Rev'] = df['Female_Percent'].iloc[::-1].cumsum().iloc[::-1]
     
+    # Initialize data series for plotting
+    male_common_data = pd.Series([])
+    male_excess_data = pd.Series([])
+    female_common_data = pd.Series([])
+    female_excess_data = pd.Series([])
+
     # Determine which columns to plot and what the x-axis label should be
     if plot_type == 'percent':
         # Calculate common and excess percentages
@@ -110,8 +121,22 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
         x_label = "Population"
         x_formatter = plt.FuncFormatter(lambda x, p: f'{abs(x):,.0f}') # Format with commas for population numbers
         title_suffix = " (Raw Population)"
+    elif plot_type == 'acc_pct':
+        # Calculate common and excess for accumulated percentages
+        df['Common_Acc_Percent_Rev'] = df[['Male_Acc_Percent_Rev', 'Female_Acc_Percent_Rev']].min(axis=1)
+        df['Excess_Male_Acc_Percent_Rev'] = df['Male_Acc_Percent_Rev'] - df['Common_Acc_Percent_Rev']
+        df['Excess_Female_Acc_Percent_Rev'] = df['Female_Acc_Percent_Rev'] - df['Common_Acc_Percent_Rev']
+
+        male_common_data = df['Common_Acc_Percent_Rev']
+        male_excess_data = df['Excess_Male_Acc_Percent_Rev']
+        female_common_data = df['Common_Acc_Percent_Rev']
+        female_excess_data = df['Excess_Female_Acc_Percent_Rev']
+
+        x_label = "Accumulated Percentage of Total Population (Above Age)"
+        x_formatter = plt.FuncFormatter(lambda x, p: f'{abs(x):.0f}%')
+        title_suffix = " (Accumulated Percentage)"
     else:
-        raise ValueError("plot_type must be 'percent' or 'population'")
+        raise ValueError("plot_type must be 'percent', 'population', or 'acc_pct'")
 
     # --- Debugging: Print numbers being plotted for each age group in a single line ---
     print("\n--- Debug: Data being plotted per age group (single line) ---")
@@ -133,6 +158,19 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
             elif row['Excess_Female_Population'] > 0:
                 extra_info = f", Extra Female {row['Excess_Female_Population']:,.0f}"
             print(f"Age Group: {group}, Male {original_male_pop:,.0f}, Female {original_female_pop:,.0f}{extra_info}")
+        elif plot_type == 'acc_pct':
+            # For acc_pct, print common and excess values for clarity in debug
+            male_common_debug = row['Common_Acc_Percent_Rev']
+            male_excess_debug = row['Excess_Male_Acc_Percent_Rev']
+            female_common_debug = row['Common_Acc_Percent_Rev']
+            female_excess_debug = row['Excess_Female_Acc_Percent_Rev']
+            
+            extra_acc_info = ""
+            if male_excess_debug > 0:
+                extra_acc_info = f", Extra Male Acc Pct {male_excess_debug:.2f}%"
+            elif female_excess_debug > 0:
+                extra_acc_info = f", Extra Female Acc Pct {female_excess_debug:.2f}%"
+            print(f"Age Group: {group}, Male Acc Pct: {row['Male_Acc_Percent_Rev']:.2f}%, Female Acc Pct: {row['Female_Acc_Percent_Rev']:.2f}%{extra_acc_info}")
     print("----------------------------------------------------")
     # --- End Debugging ---
 
@@ -144,7 +182,6 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     # Plot Male population (left side) - Common part
     ax.barh(df['GROUP'], -male_common_data, height=bar_height, color='skyblue', label='Male (Common)')
     # Plot Male population (left side) - Excess part
-    # Corrected: Use positive width and set 'left' to the start of the excess portion
     ax.barh(df['GROUP'], male_excess_data, height=bar_height, left=-(male_common_data + male_excess_data),
             color='steelblue', label='Male (Excess)')
 
@@ -153,12 +190,21 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
     # Plot Female population (right side) - Excess part
     ax.barh(df['GROUP'], female_excess_data, height=bar_height, left=female_common_data,
             color='indianred', label='Female (Excess)')
+    
+    # Custom legend handles for common and excess parts (consistent for all plot types now)
+    handles = [
+        Patch(facecolor='skyblue', label='Male (Common)'),
+        Patch(facecolor='steelblue', label='Male (Excess)'),
+        Patch(facecolor='lightcoral', label='Female (Common)'),
+        Patch(facecolor='indianred', label='Female (Excess)')
+    ]
+    
+    ax.legend(handles=handles, loc='upper right')
 
     # Customize plot
     ax.set_xlabel(x_label)
     ax.set_ylabel("Age Group")
     
-    # --- Start of Y-axis Label and Grid Line Changes ---
     # Get the sorted list of age group labels and their corresponding positions
     age_groups_list = df['GROUP'].tolist()
     tick_positions = []
@@ -181,7 +227,6 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
 
     # Add horizontal grid lines
     ax.grid(axis='y', linestyle='--', alpha=0.7)
-    # --- End of Y-Y-axis Label and Grid Line Changes ---
 
     # Format x-axis labels dynamically
     ax.xaxis.set_major_formatter(x_formatter)
@@ -193,23 +238,31 @@ def plot_population_pyramid(csv_path: str, output_dir: str, output_filename: str
              ha='center', va='center', fontsize=10, color='gray', transform=ax.transAxes)
 
     # Set x-axis limits symmetrically to ensure the pyramid is centered
-    # Add some padding (10%) for better visualization
+    # max_val should be based on the total (common + excess) for the selected plot type
     max_val = max(male_common_data.max() + male_excess_data.max(), 
                   female_common_data.max() + female_excess_data.max()) if not df.empty else 10
     ax.set_xlim(-max_val * 1.1, max_val * 1.1) 
 
-    # Create custom legend handles for common and excess parts
-    from matplotlib.patches import Patch
-    custom_legend_labels = {
-        'Male': [Patch(facecolor='skyblue', label='Male (Common)'),
-                 Patch(facecolor='steelblue', label='Male (Excess)')],
-        'Female': [Patch(facecolor='lightcoral', label='Female (Common)'),
-                   Patch(facecolor='indianred', label='Female (Excess)')]
-    }
-    # Flatten the list of patches for the legend
-    handles = [item for sublist in custom_legend_labels.values() for item in sublist]
-    ax.legend(handles=handles, loc='upper right')
-    
+    # --- Add more x-axis labels for percentage plots (every 5%) ---
+    if plot_type in ['acc_pct']:
+        # Determine the maximum absolute value on the x-axis (excluding padding)
+        current_max_x = max(male_common_data.max() + male_excess_data.max(),
+                            female_common_data.max() + female_excess_data.max())
+        
+        # Create ticks at 5% intervals up to and including the max value
+        # Ensure 0 is always included
+        positive_ticks = np.arange(0, current_max_x + 5, 5)
+        # Create symmetric negative ticks
+        negative_ticks = -positive_ticks[1:] # Exclude 0 from negative ticks to avoid duplication
+        
+        # Combine and sort all ticks
+        all_ticks = np.sort(np.concatenate((negative_ticks, positive_ticks)))
+        
+        # Set the x-axis ticks
+        ax.set_xticks(all_ticks)
+        # The x_formatter will handle the labels correctly (e.g., -5% becomes 5%)
+    # --- End of x-axis label additions ---
+
     ax.grid(axis='x', linestyle='--', alpha=0.7) # Keep vertical grid lines
 
     # Create the output directory if it doesn't exist
@@ -232,8 +285,8 @@ def main():
     parser.add_argument(
         "--plot_type",
         default="percent",
-        choices=["percent", "population"],
-        help="Type of data to plot: 'percent' or 'population'. Defaults to 'percent'."
+        choices=["percent", "population", "acc_pct"], # Added 'acc_pct' as a choice
+        help="Type of data to plot: 'percent', 'population', or 'acc_pct'. Defaults to 'percent'."
     )
     args = parser.parse_args()
     csv_file = args.csv_file
